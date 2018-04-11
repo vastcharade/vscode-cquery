@@ -13,7 +13,7 @@ type Nullable<T> = T|null;
 
 export function parseUri(u): Uri {
   return Uri.parse(u);
-}
+  }
 
 function setContext(name, value) {
   commands.executeCommand('setContext', name, value);
@@ -74,7 +74,7 @@ class SemanticSymbol {
       readonly stableId: number, readonly parentKind: SymbolKind,
       readonly kind: SymbolKind, readonly isTypeMember: boolean,
       readonly storage: StorageClass, readonly ranges: Array<Range>) {}
-}
+  }
 
 function getClientConfig(context: ExtensionContext) {
   const kCacheDirPrefName = 'cacheDirectory';
@@ -141,7 +141,10 @@ function getClientConfig(context: ExtensionContext) {
     ['compilationDatabaseDirectory', 'misc.compilationDatabaseDirectory'],
     ['completion.enableSnippets', 'completion.enableSnippetInsertion'],
     ['completion.includeMaxPathSize', 'completion.include.maximumPathLength'],
-    ['completion.includeSuffixWhitelist', 'completion.include.whitelistLiteralEnding'],
+    [
+      'completion.includeSuffixWhitelist',
+      'completion.include.whitelistLiteralEnding'
+    ],
     ['completion.includeWhitelist', 'completion.include.whitelist'],
     ['completion.includeBlacklist', 'completion.include.blacklist'],
     ['showDocumentLinksOnIncludes', 'showDocumentLinksOnIncludes'],
@@ -178,7 +181,7 @@ function getClientConfig(context: ExtensionContext) {
       }
       subconfig[subprops[subprops.length - 1]] = resolveVariables(value);
     }
-  }
+    }
 
   // Set up a cache directory if there is not one.
   if (!clientConfig.cacheDirectory) {
@@ -194,7 +197,7 @@ function getClientConfig(context: ExtensionContext) {
               commands.executeCommand('workbench.action.openWorkspaceSettings');
           });
       return;
-    }
+      }
 
     // Provide a default cache directory if it is not present. Insert next to
     // the project since if the user has an SSD they most likely have their
@@ -205,7 +208,7 @@ function getClientConfig(context: ExtensionContext) {
   }
 
   return clientConfig;
-}
+  }
 
 
 
@@ -217,22 +220,20 @@ export function activate(context: ExtensionContext) {
   // Load configuration and start the client.
   let getLanguageClient = (() => {
     let clientConfig = getClientConfig(context);
-    if (!clientConfig)
-      return;
+    if (!clientConfig) return;
     // Notify the user that if they change a cquery setting they need to restart
     // vscode.
     context.subscriptions.push(workspace.onDidChangeConfiguration(() => {
       let newConfig = getClientConfig(context);
       for (let key in newConfig) {
-        if (!newConfig.hasOwnProperty(key))
-          continue;
+        if (!newConfig.hasOwnProperty(key)) continue;
 
         if (!clientConfig ||
             JSON.stringify(clientConfig[key]) !=
                 JSON.stringify(newConfig[key])) {
           const kReload = 'Reload'
-          const message = `Please reload to apply the "cquery.${
-              key}" configuration change.`;
+          const message = `Please reload to apply the "cquery.${key
+                          }" configuration change.`;
 
           window.showInformationMessage(message, kReload).then(selected => {
             if (selected == kReload)
@@ -250,8 +251,7 @@ export function activate(context: ExtensionContext) {
       'ProgramData',
       'PATH',
     ];
-    for (let e of kToForward)
-      env[e] = process.env[e];
+    for (let e of kToForward) env[e] = process.env[e];
 
     // env.LIBCLANG_LOGGING = '1';
     // env.MALLOC_CHECK_ = '2';
@@ -279,15 +279,13 @@ export function activate(context: ExtensionContext) {
 
     function displayCodeLens(document: TextDocument, allCodeLens: CodeLens[]) {
       for (let editor of window.visibleTextEditors) {
-        if (editor.document != document)
-          continue;
+        if (editor.document != document) continue;
 
         let opts: DecorationOptions[] = [];
 
         for (let codeLens of allCodeLens) {
           // FIXME: show a real warning or disable on-the-side code lens.
-          if (!codeLens.isResolved)
-            console.error('Code lens is not resolved');
+          if (!codeLens.isResolved) console.error('Code lens is not resolved');
 
           // Default to after the content.
           let position = codeLens.range.end;
@@ -309,15 +307,14 @@ export function activate(context: ExtensionContext) {
 
         editor.setDecorations(codeLensDecoration, opts);
       }
-    }
+      }
 
     function provideCodeLens(
         document: TextDocument, token: CancellationToken,
         next: ProvideCodeLensesSignature): ProviderResult<CodeLens[]> {
       let config = workspace.getConfiguration('cquery');
       let enableInlineCodeLens = config.get('codeLens.renderInline', false);
-      if (!enableInlineCodeLens)
-        return next(document, token);
+      if (!enableInlineCodeLens) return next(document, token);
 
       // We run the codeLens request ourselves so we can intercept the response.
       return languageClient
@@ -335,6 +332,9 @@ export function activate(context: ExtensionContext) {
     };
 
     // Options to control the language client
+    let emptyfunc = () => {
+      return null;
+    };
     let clientOptions: LanguageClientOptions = {
       documentSelector: ['c', 'cpp', 'objective-c', 'objective-cpp'],
       // synchronize: {
@@ -345,7 +345,29 @@ export function activate(context: ExtensionContext) {
       outputChannelName: 'cquery',
       revealOutputChannelOn: RevealOutputChannelOn.Never,
       initializationOptions: clientConfig,
-      middleware: {provideCodeLenses: provideCodeLens},
+      middleware: {
+        provideCodeLenses: provideCodeLens,
+        // NOTE(croot): adding the provideDefinition/provideHover middleware
+        // options to turn off definition/hover events so that this extension
+        // plays nice with the vscode-cpptools extension.
+        // We'll let the vscode-cpptools extension handle the definitions/hovers
+        // since it already does a good job (and handles declarations too)
+        provideDefinition: emptyfunc,
+        provideHover: emptyfunc,
+        provideDocumentColors: emptyfunc,
+        provideDocumentFormattingEdits: emptyfunc,
+        provideSignatureHelp: emptyfunc,
+        provideDocumentSymbols: emptyfunc,
+        provideWorkspaceSymbols: emptyfunc,
+        provideDocumentRangeFormattingEdits: emptyfunc,
+        provideOnTypeFormattingEdits: emptyfunc,
+        provideDocumentLinks: emptyfunc,
+        provideTypeDefinition: emptyfunc,
+        provideImplementation: emptyfunc,
+        provideDocumentHighlights: emptyfunc,
+        provideColorPresentations: emptyfunc,
+        // handleDiagnostics: emptyfunc,
+      },
       initializationFailedHandler: (e) => {
         console.log(e);
         return false;
@@ -445,10 +467,9 @@ export function activate(context: ExtensionContext) {
            for (const edit of textEdits)
              editBuilder.replace(edit.range, edit.newText);
          }).then(success => {
-          if (!success)
-            window.showErrorMessage('Failed to apply FixIt');
+          if (!success) window.showErrorMessage('Failed to apply FixIt');
         });
-      }
+        }
 
       // Find existing open document.
       for (const textEditor of window.visibleTextEditors) {
@@ -492,7 +513,7 @@ export function activate(context: ExtensionContext) {
           constructor(
               public label: string, public description: string,
               public edit: any) {}
-        }
+          }
         for (let edit of pTextEdits) {
           items.push(new MyQuickPick(edit.newText, '', edit));
         }
@@ -593,14 +614,19 @@ export function activate(context: ExtensionContext) {
           if (timeout) {
             clearTimeout(timeout);
             timeout = undefined;
-          }
+            }
           else {
-            window.withProgress({location: ProgressLocation.Notification, title: 'querydb is busy'}, (p) => {
-              p.report({increment: 100})
-              return new Promise((resolve, reject) => {
-                resolvePromise = resolve;
-              });
-            });
+            window.withProgress(
+                {
+                  location: ProgressLocation.Notification,
+                  title: 'querydb is busy'
+                },
+                (p) => {
+                  p.report({increment: 100}) return new Promise(
+                      (resolve, reject) => {
+                        resolvePromise = resolve;
+                      });
+                });
           }
         } else if (resolvePromise) {
           timeout = setTimeout(() => {
@@ -715,9 +741,8 @@ export function activate(context: ExtensionContext) {
   (() => {
     commands.registerCommand(
         'cquery.gotoForTreeView',
-        (node: InheritanceHierarchyNode|CallHierarchyNode) => {
-          if (!node.location)
-            return;
+        (node: InheritanceHierarchyNode | CallHierarchyNode) => {
+          if (!node.location) return;
 
           let parsedUri = parseUri(node.location.uri);
           let parsedPosition = p2c.asPosition(node.location.range.start);
@@ -729,21 +754,20 @@ export function activate(context: ExtensionContext) {
     let lastGotoClickTime: number
     commands.registerCommand(
         'cquery.hackGotoForTreeView',
-        (node: InheritanceHierarchyNode|CallHierarchyNode,
+        (node: InheritanceHierarchyNode | CallHierarchyNode,
          hasChildren: boolean) => {
-          if (!node.location)
-            return;
+          if (!node.location) return;
 
           if (!hasChildren) {
             commands.executeCommand('cquery.gotoForTreeView', node);
             return;
-          }
+            }
 
           if (lastGotoNodeId != node.id) {
             lastGotoNodeId = node.id;
             lastGotoClickTime = Date.now();
             return;
-          }
+            }
 
           let config = workspace.getConfiguration('cquery');
           const kDoubleClickTimeMs =
@@ -766,12 +790,9 @@ export function activate(context: ExtensionContext) {
       let opts: any = {};
       opts.rangeBehavior = DecorationRangeBehavior.ClosedClosed;
       opts.color = color;
-      if (underline == true)
-        opts.textDecoration = 'underline';
-      if (italic == true)
-        opts.fontStyle = 'italic';
-      if (bold == true)
-        opts.fontWeight = 'bold';
+      if (underline == true) opts.textDecoration = 'underline';
+      if (italic == true) opts.fontStyle = 'italic';
+      if (bold == true) opts.fontWeight = 'bold';
       return window.createTextEditorDecorationType(
           <DecorationRenderOptions>opts);
     };
@@ -786,15 +807,15 @@ export function activate(context: ExtensionContext) {
     };
     let semanticDecorations = new Map<string, TextEditorDecorationType[]>();
     let semanticEnabled = new Map<string, boolean>();
-    for (let type of
-             ['types', 'freeStandingFunctions', 'memberFunctions',
-              'freeStandingVariables', 'memberVariables', 'namespaces',
-              'macros', 'enums', 'typeAliases', 'enumConstants',
-              'staticMemberFunctions', 'parameters', 'templateParameters',
-              'staticMemberVariables', 'globalVariables']) {
+    for (let type
+             of ['types', 'freeStandingFunctions', 'memberFunctions',
+                 'freeStandingVariables', 'memberVariables', 'namespaces',
+                 'macros', 'enums', 'typeAliases', 'enumConstants',
+                 'staticMemberFunctions', 'parameters', 'templateParameters',
+                 'staticMemberVariables', 'globalVariables']) {
       semanticDecorations.set(type, makeDecorations(type));
       semanticEnabled.set(type, false);
-    }
+      }
 
     function updateConfigValues() {
       // Fetch new config instance, since vscode will cache the previous one.
@@ -809,8 +830,7 @@ export function activate(context: ExtensionContext) {
     function tryFindDecoration(symbol: SemanticSymbol):
         Nullable<TextEditorDecorationType> {
       function get(name: string) {
-        if (!semanticEnabled.get(name))
-          return undefined;
+        if (!semanticEnabled.get(name)) return undefined;
         let decorations = semanticDecorations.get(name);
         return decorations[symbol.stableId % decorations.length];
       };
@@ -836,12 +856,12 @@ export function activate(context: ExtensionContext) {
             symbol.parentKind == SymbolKind.Method ||
             symbol.parentKind == SymbolKind.Constructor) {
           return get('freeStandingVariables');
-        }
+          }
         return get('globalVariables');
       } else if (symbol.kind == SymbolKind.Field) {
         if (symbol.storage == StorageClass.Static) {
           return get('staticMemberVariables');
-        }
+          }
         return get('memberVariables');
       } else if (symbol.kind == SymbolKind.Parameter) {
         return get('parameters');
@@ -865,24 +885,21 @@ export function activate(context: ExtensionContext) {
             updateConfigValues();
 
             for (let visibleEditor of window.visibleTextEditors) {
-              if (args.uri != visibleEditor.document.uri.toString())
-                continue;
+              if (args.uri != visibleEditor.document.uri.toString()) continue;
 
               let decorations =
                   new Map<TextEditorDecorationType, Array<Range>>();
 
               for (let symbol of args.symbols) {
                 let type = tryFindDecoration(symbol);
-                if (!type)
-                  continue;
+                if (!type) continue;
                 if (decorations.has(type)) {
                   let existing = decorations.get(type);
-                  for (let range of symbol.ranges)
-                    existing.push(range);
+                  for (let range of symbol.ranges) existing.push(range);
                 } else {
                   decorations.set(type, symbol.ranges);
                 }
-              }
+                }
 
               // Clear decorations and set new ones. We might not use all of the
               // decorations so clear before setting.
